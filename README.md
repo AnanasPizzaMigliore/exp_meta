@@ -30,7 +30,7 @@ The project is structured into modular components to facilitate reuse in other S
 ### 2. ExecuTorch Pipeline (`.executorch`)
 - **`OCRManager`**: Handles the detection and recognition models.
 - **`DateParser`**: Intelligent timestamp extraction for identifying product age or expiration dates.
-- **`Pre/Post Processors`**: Optimized image manipulation and tensor handling for mobile NPU/GPU.
+- **`Pre/Post Processors`**: Optimized image manipulation and tensor handling for mobile CPU.
 
 ### 3. Spatial UI & Interaction
 - **Interaction SDK (ISDK)**: Direct touch and ray-cast manipulation of 3D panels.
