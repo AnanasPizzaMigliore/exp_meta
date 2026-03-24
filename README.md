@@ -15,8 +15,6 @@ This app allows users to scan their physical environment, detect real-world obje
 - **⚡ On-Device AI (ExecuTorch)** – Real-time object recognition and OCR (Optical Character Recognition) running locally on the Quest 3/3S using PyTorch's ExecuTorch framework.
 - **🗣️ Voice Activation (KWS)** – Hands-free interaction via **Keyword Spotting**. Use voice commands to trigger scans or interact with the UI.
 - **👁️ Passthrough Camera API** – Seamless access to the Quest's forward-facing cameras for low-latency computer vision inference.
-- **🧠 Llama 3.2 11B Vision** – (Cloud fallback) Integration with AWS Bedrock to provide deep, multimodal insights about objects detected in the user's field of view.
-- **📦 Curated 3D Content** – Automatic spawning of interactive 3D models (Fridge, TV, Phone) when specific real-world products are identified.
 
 ---
 
