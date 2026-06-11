@@ -14,7 +14,6 @@ import com.meta.pixelandtexel.scanner.models.PanelContentBase
 import com.meta.pixelandtexel.scanner.models.PanelContentType
 import com.meta.pixelandtexel.scanner.models.TileContent
 import com.meta.pixelandtexel.scanner.models.TilesPanelContent
-import com.meta.pixelandtexel.scanner.utils.MathUtils.fromAxisAngle
 import com.meta.pixelandtexel.scanner.utils.MathUtils.isValid
 import com.meta.spatial.core.Bound3D
 import com.meta.spatial.core.Entity

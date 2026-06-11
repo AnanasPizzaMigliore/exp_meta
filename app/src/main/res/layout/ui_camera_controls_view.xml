@@ -20,13 +20,37 @@
     <Button
         android:id="@+id/btnSelectFolder"
         android:layout_width="wrap_content"
-        android:layout_height="60dp"
-        android:layout_marginStart="16dp"
+        android:layout_height="80dp"
+        android:layout_marginStart="12dp"
         android:text="Benchmark"
-        android:textSize="20sp"
+        android:textSize="28sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btnGatedAblation"
+        app:layout_constraintStart_toEndOf="@id/camera_play_btn"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/btnGatedAblation"
+        android:layout_width="wrap_content"
+        android:layout_height="80dp"
+        android:layout_marginStart="12dp"
+        android:text="Gated"
+        android:textSize="28sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btnContinuousAblation"
+        app:layout_constraintStart_toEndOf="@id/btnSelectFolder"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/btnContinuousAblation"
+        android:layout_width="wrap_content"
+        android:layout_height="80dp"
+        android:layout_marginStart="12dp"
+        android:text="Continuous"
+        android:textSize="28sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/camera_play_btn"
+        app:layout_constraintStart_toEndOf="@id/btnGatedAblation"
         app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

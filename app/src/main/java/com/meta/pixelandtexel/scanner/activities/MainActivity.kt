@@ -27,6 +27,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.meta.pixelandtexel.scanner.Outlined
 import com.meta.pixelandtexel.scanner.R
+import com.meta.pixelandtexel.scanner.benchmark.AblationSessionLogger
 import com.meta.pixelandtexel.scanner.WristAttached
 import com.meta.pixelandtexel.scanner.ecs.OutlinedSystem
 import com.meta.pixelandtexel.scanner.ecs.WristAttachedSystem
@@ -114,6 +115,14 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
     // State Guards & Jobs
     private var scanTimeoutJob: Job? = null
     private var isScanInProgress = false
+
+    // --- ABLATION EXPERIMENT ---
+    private var ablationSessionLogger: AblationSessionLogger? = null
+    private var ablationTickJob: Job? = null
+    private var isContinuousModeActive = false
+    private var pendingAblationMode: AblationSessionLogger.Mode? = null
+    private var btnGatedAblation: Button? = null
+    private var btnContinuousAblation: Button? = null
 
     private val debugToneGen = android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 100)
     private var isHandRaised = false
@@ -292,12 +301,18 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
             data?.data?.let { uri ->
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 selectedBenchmarkFolderUri = uri
-                pendingIsBenchmark = true
                 Log.d(TAG, "Benchmark folder selected. URI: $uri")
 
-                // BUG FIX: Removed startScanning() from here to prevent the state machine
-                // from instantly destroying the benchmark panel.
-                showInfoPanelForObject("Benchmark Mode")
+                val queuedMode = pendingAblationMode
+                if (queuedMode != null) {
+                    pendingAblationMode = null
+                    startAblationSession(queuedMode)
+                } else {
+                    pendingIsBenchmark = true
+                    // BUG FIX: Removed startScanning() from here to prevent the state machine
+                    // from instantly destroying the benchmark panel.
+                    showInfoPanelForObject("Benchmark Mode")
+                }
             }
         }
     }
@@ -373,8 +388,8 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
                 config {
                     themeResourceId = R.style.PanelAppThemeTransparent
                     includeGlass = false
-                    layoutWidthInDp = 260f
-                    width = 0.13f
+                    layoutWidthInDp = 520f
+                    width = 0.26f
                     height = 0.04f
                     layerConfig = LayerConfig()
                     layerBlendType = PanelShapeLayerBlendType.MASKED
@@ -388,6 +403,24 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
                     benchmarkBtn?.setOnClickListener {
                         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
                         startActivityForResult(intent, BENCHMARK_FOLDER_REQUEST_CODE)
+                    }
+
+                    btnGatedAblation = rootView?.findViewById(R.id.btnGatedAblation)
+                    btnGatedAblation?.setOnClickListener {
+                        if (ablationSessionLogger?.isActive == true && !isContinuousModeActive) {
+                            stopAblationSession()
+                        } else {
+                            startAblationSession(AblationSessionLogger.Mode.GATED)
+                        }
+                    }
+
+                    btnContinuousAblation = rootView?.findViewById(R.id.btnContinuousAblation)
+                    btnContinuousAblation?.setOnClickListener {
+                        if (ablationSessionLogger?.isActive == true && isContinuousModeActive) {
+                            stopAblationSession()
+                        } else {
+                            startAblationSession(AblationSessionLogger.Mode.CONTINUOUS)
+                        }
                     }
 
                     cameraControlsBtn?.setOnClickListener {
@@ -472,12 +505,22 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
     /**
      * STATE 1: ROAMING MODE (Lowest Power)
      * Camera/OCR is OFF. Kinematic and Voice triggers are ON.
+     *
+     * In continuous ablation mode the camera is never paused — this function is a no-op
+     * except for resetting the in-progress guard.
      */
     private fun enterRoamingMode() {
         Log.d(TAG, "Entering Roaming Mode. Waiting for intent to scan...")
 
         isScanInProgress = false
         scanTimeoutJob?.cancel()
+
+        if (isContinuousModeActive) {
+            // Keep camera running; no kinematic/voice triggers needed
+            objectDetectionFeature.scan()
+            return
+        }
+
         objectDetectionFeature.pause()
 
         kinematicTrigger.startListening()
@@ -563,6 +606,81 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
         val rotation = Quaternion.lookRotationAroundY(position - headPosition)
 
         return Pose(position, rotation)
+    }
+
+    private fun startAblationSession(mode: AblationSessionLogger.Mode) {
+        val folderUri = selectedBenchmarkFolderUri
+        if (folderUri == null) {
+            pendingAblationMode = mode
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            startActivityForResult(intent, BENCHMARK_FOLDER_REQUEST_CODE)
+            return
+        }
+
+        if (ablationSessionLogger?.isActive == true) stopAblationSession()
+
+        objectDetectionFeature.resetFrameCounters()
+        objectDetectionFeature.continuousMode = (mode == AblationSessionLogger.Mode.CONTINUOUS)
+        isContinuousModeActive = (mode == AblationSessionLogger.Mode.CONTINUOUS)
+
+        val logger = AblationSessionLogger(this)
+        logger.start(mode, folderUri)
+        ablationSessionLogger = logger
+
+        ablationTickJob?.cancel()
+        ablationTickJob = activityScope.launch {
+            while (true) {
+                delay(30_000L)
+                ablationSessionLogger?.logTick()
+            }
+        }
+
+        if (isContinuousModeActive) {
+            kinematicTrigger.stopListening()
+            voiceActivator?.stopListening()
+            objectDetectionFeature.scan()
+        } else {
+            enterRoamingMode()
+        }
+
+        updateAblationButtonLabels(mode, running = true)
+        Log.d(TAG, "Ablation session started: mode=$mode")
+    }
+
+    private fun stopAblationSession() {
+        ablationTickJob?.cancel()
+        ablationTickJob = null
+
+        val summary = ablationSessionLogger?.stop(
+            framesTotal = objectDetectionFeature.framesTotal,
+            framesPassedGate = objectDetectionFeature.framesPassedGate
+        )
+        ablationSessionLogger = null
+
+        isContinuousModeActive = false
+        objectDetectionFeature.continuousMode = false
+
+        enterRoamingMode()
+
+        updateAblationButtonLabels(null, running = false)
+        Log.d(TAG, "Ablation session stopped. Summary: $summary")
+    }
+
+    private fun updateAblationButtonLabels(activeMode: AblationSessionLogger.Mode?, running: Boolean) {
+        runOnUiThread {
+            if (running && activeMode == AblationSessionLogger.Mode.GATED) {
+                btnGatedAblation?.text = "Stop G"
+                btnContinuousAblation?.isEnabled = false
+            } else if (running && activeMode == AblationSessionLogger.Mode.CONTINUOUS) {
+                btnContinuousAblation?.text = "Stop C"
+                btnGatedAblation?.isEnabled = false
+            } else {
+                btnGatedAblation?.text = "Gated"
+                btnContinuousAblation?.text = "Continuous"
+                btnGatedAblation?.isEnabled = true
+                btnContinuousAblation?.isEnabled = true
+            }
+        }
     }
 
     private fun onObjectDetectionFeatureStatusChanged(newStatus: CameraStatus) {
@@ -659,6 +777,7 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
 
     override fun onPause() {
         scanTimeoutJob?.cancel()
+        if (ablationSessionLogger?.isActive == true) stopAblationSession()
         kinematicTrigger.stopListening()
         objectDetectionFeature.pause()
         voiceActivator?.stopListening()
@@ -672,6 +791,7 @@ class MainActivity : ActivityCompat.OnRequestPermissionsResultCallback, AppSyste
 
     override fun onDestroy() {
         scanTimeoutJob?.cancel()
+        ablationTickJob?.cancel()
         kinematicTrigger.stopListening()
         voiceActivator?.destroy()
         super.onDestroy()

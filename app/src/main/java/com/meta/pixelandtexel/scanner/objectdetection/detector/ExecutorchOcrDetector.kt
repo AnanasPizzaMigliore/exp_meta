@@ -7,6 +7,7 @@ import android.graphics.Rect
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.BatteryManager
 import android.os.SystemClock
 import android.util.Log
 import com.k2fsa.sherpa.onnx.OfflineTts
@@ -193,8 +194,11 @@ class ExecutorchOcrDetector(private val context: Context) : IObjectDetectorHelpe
             )
             // ----------------------------------------------------------------
 
+            val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+            val batteryMah = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) / 1000
+
             // [LATENCY_BENCHMARK] T5: TTS Playback Starts. The exact moment the TextToSpeech engine begins routing audio
-            Log.d("LATENCY_BENCHMARK", "T5: TTS Playback Starts")
+            Log.d("LATENCY_BENCHMARK", "T5: TTS Playback Starts | Battery: ${batteryMah}mAh")
             audioTrack?.play()
         }
     }
@@ -250,8 +254,11 @@ class ExecutorchOcrDetector(private val context: Context) : IObjectDetectorHelpe
                     val cleanText = DateParser.parse(rawText) ?: ""
 
                     if (cleanText.isNotBlank()) {
+                        val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+                        val batteryMah = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) / 1000
+
                         // [LATENCY_BENCHMARK] T4: Parsing Complete. The moment your local logic calculates the date difference
-                        Log.d("LATENCY_BENCHMARK", "T4: Parsing Complete (Date difference: $cleanText)")
+                        Log.d("LATENCY_BENCHMARK", "T4: Parsing Complete (Date difference: $cleanText) | Battery: ${batteryMah}mAh")
                         Log.d(TAG, "parsed date: $cleanText")
 
                         if (isPiperReady && cleanText != lastSpokenText) {

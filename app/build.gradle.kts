@@ -4,20 +4,20 @@ import java.util.Properties
 
 plugins {
   alias(libs.plugins.android.application)
-  alias(libs.plugins.jetbrains.kotlin.android)
   alias(libs.plugins.meta.spatial.plugin)
   alias(libs.plugins.jetbrains.kotlin.plugin.compose)
 }
 
 android {
   namespace = "com.meta.pixelandtexel.scanner"
-  compileSdk = 36
+  compileSdk = 37
+  ndkVersion = "27.0.12077973"
 
   defaultConfig {
     applicationId = "com.meta.pixelandtexel.scanner"
     minSdk = 34
     //noinspection ExpiredTargetSdkVersion
-    targetSdk = 36
+    targetSdk = 37
     versionCode = 12
     versionName = "1.0"
 
@@ -41,7 +41,8 @@ android {
           pickFirsts.add("lib/x86_64/libc++_shared.so")
           pickFirsts.add("lib/armeabi-v7a/libc++_shared.so")
           pickFirsts.add("lib/arm64-v8a/libc++_shared.so")
-      }
+        useLegacyPackaging = true
+    }
   }
 
   lint { abortOnError = false }

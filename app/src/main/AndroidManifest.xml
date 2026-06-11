@@ -79,9 +79,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Meta Spatial Scanner"
-        android:extractNativeLibs="true"
-        >
+        android:label="Meta Spatial Scanner">
         <meta-data
             android:name="com.oculus.supportedDevices"
             android:value="quest2|questpro|quest3"

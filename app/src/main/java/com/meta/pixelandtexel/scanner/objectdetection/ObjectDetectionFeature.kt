@@ -5,8 +5,10 @@ package com.meta.pixelandtexel.scanner.objectdetection
 import android.animation.Keyframe
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
+import android.content.Context
 import android.graphics.Bitmap
 import android.media.Image
+import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -47,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.core.graphics.createBitmap
+import java.util.concurrent.atomic.AtomicInteger
 
 class ObjectDetectionFeature(
   private val activity: AppSystemActivity,
@@ -72,6 +75,19 @@ class ObjectDetectionFeature(
     motionThreshold = 6.0f,
     blurThreshold = 100.0
   )
+
+  // When true the visual-proxy gate is skipped (continuous-inference ablation baseline)
+  var continuousMode: Boolean = false
+
+  private val _framesTotal = AtomicInteger(0)
+  private val _framesPassedGate = AtomicInteger(0)
+  val framesTotal: Int get() = _framesTotal.get()
+  val framesPassedGate: Int get() = _framesPassedGate.get()
+
+  fun resetFrameCounters() {
+    _framesTotal.set(0)
+    _framesPassedGate.set(0)
+  }
 
   // systems
   private lateinit var viewLockedSystem: ViewLockedSystem
@@ -310,21 +326,26 @@ class ObjectDetectionFeature(
   }
 
   override fun onNewImage(image: Image, width: Int, height: Int, finally: () -> Unit) {
-    val proxyBitmap = extractGrayscaleBitmap(image)
+    _framesTotal.incrementAndGet()
 
-    if (proxyBitmap == null || !visualProxy.isIntentDetected(proxyBitmap)) {
-      proxyBitmap?.recycle()
-
-      // --- ADD THIS LOG ---
-      Log.d(TAG, "Frame rejected by Visual Proxy (Motion or Blur).")
-
-      finally()
-      return
+    if (!continuousMode) {
+      val proxyBitmap = extractGrayscaleBitmap(image)
+      if (proxyBitmap == null || !visualProxy.isIntentDetected(proxyBitmap)) {
+        proxyBitmap?.recycle()
+        Log.d(TAG, "Frame rejected by Visual Proxy (Motion or Blur).")
+        finally()
+        return
+      }
+      proxyBitmap.recycle()
     }
 
-    proxyBitmap.recycle()
+    _framesPassedGate.incrementAndGet()
+
+    val batteryManager = activity.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+    val batteryMah = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) / 1000
+
     // [LATENCY_BENCHMARK] T1: Frame Stabilized. The moment your Software IMU confirms a sharp, stable frame
-    Log.d("LATENCY_BENCHMARK", "T1: Frame Stabilized (Visual Proxy passed)")
+    Log.d("LATENCY_BENCHMARK", "T1: Frame Stabilized (Visual Proxy passed) | Battery: ${batteryMah}mAh")
     Log.d(TAG, "🎯 VISUAL PROXY PASSED: Scene stable. Waking up ExecuTorch...")
 
     objectDetector.detect(image, width, height, finally)

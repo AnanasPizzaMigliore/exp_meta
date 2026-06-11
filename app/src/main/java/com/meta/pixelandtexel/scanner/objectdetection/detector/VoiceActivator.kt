@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.BatteryManager
 import android.util.Log
 import com.k2fsa.sherpa.onnx.*
 import kotlinx.coroutines.*
@@ -132,8 +133,10 @@ class VoiceActivator(private val context: Context, private val onScanCommand: ()
 
                                 val result = kws?.getResult(stream)
                                 if (result != null && result.keyword.isNotBlank()) {
+                                    val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+                                    val batteryMah = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) / 1000
                                     // [LATENCY_BENCHMARK] T0: STT Complete. The moment the SpeechRecognizer recognizes the wake-word
-                                    Log.d("LATENCY_BENCHMARK", "T0: STT Complete (Wake-word recognized: ${result.keyword})")
+                                    Log.d("LATENCY_BENCHMARK", "T0: STT Complete (Wake-word recognized: ${result.keyword}) | Battery: ${batteryMah}mAh")
 
                                     stream.release()
                                     localStream = kws?.createStream()
